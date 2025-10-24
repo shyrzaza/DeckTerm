@@ -7,6 +7,23 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div id="custom-titlebar">
+    <div id="titlebar-left">
+  <img id="app-logo" src="build/DeckTerm.png" alt="DeckTerm Logo" style="height:20px; width:auto; margin-left:4px;" />
+      <!-- <button id="context-menu-btn">☰</button>
+      <div id="context-menu" class="hidden">
+        <ul>
+          <li id="menu-item-1">Custom Action 1</li>
+          <li id="menu-item-2">Custom Action 2</li>
+        </ul>
+      </div> -->
+    </div>
+    <div id="titlebar-right">
+      <button id="min-btn" title="Minimize">&#x2013;</button>
+      <button id="max-btn" title="Maximize">&#x25A1;</button>
+      <button id="close-btn" title="Close">&#x2715;</button>
+    </div>
+  </div>
   <div id="terminal" class="scroll_enabled"></div>
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.js"></script>

@@ -5,7 +5,42 @@
  * through direct keyboard input and remote WebSocket commands.
  */
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+// Handle 'Select shell' dialog from renderer
+ipcMain.on('select-shell-dialog', async (event) => {
+    const win = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog(win, {
+        title: 'Select Shell Executable',
+        properties: ['openFile'],
+        filters: [
+            { name: 'Executables', extensions: process.platform === 'win32' ? ['exe', 'bat', 'cmd'] : ['sh', 'bash', '*'] }
+        ]
+    });
+    if (!result.canceled && result.filePaths && result.filePaths[0]) {
+        const newShellPath = result.filePaths[0];
+        // Write to config.json
+        const newConfig = { customPath: newShellPath };
+        fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2));
+        // Reload shell in running app
+        reloadShell(newShellPath);
+    }
+});
+
+// Helper to reload the shell process
+function reloadShell(newShellPath) {
+    shell = newShellPath;
+    if (ptyProcess) {
+        try { ptyProcess.kill(); } catch (e) {}
+    }
+    ptyProcess = pty.spawn(shell, [], {
+        name: 'xterm-color',
+        cols: 120,
+        rows: 40,
+        cwd: process.env.HOME,
+        env: process.env
+    });
+    setupTerminalHandlers();
+}
 const pty = require('node-pty');
 const os = require('os');
 const path = require('path');
@@ -13,7 +48,7 @@ const fs = require('fs');
 const WebSocket = require('ws');
 
 // Constants
-const DEFAULT_SHELL_WIN = 'C:\\Program Files\\Git\\bin\\bash.exe';
+const DEFAULT_SHELL_WIN = '"C:\\WINDOWS\\system32\\cmd.exe"';
 const DEFAULT_SHELL_UNIX = 'bash';
 const WS_PORT = 3000;
 
@@ -95,6 +130,7 @@ function createWindow() {
         height: savedState.height,
         x: savedState.x,
         y: savedState.y,
+        frame: false, // Disable default titlebar
         webPreferences: {
             nodeIntegration: true,
             enableRemoteModule: true,
@@ -122,6 +158,26 @@ function createWindow() {
 
     // Set up terminal event handlers
     setupTerminalHandlers();
+
+    // IPC handler for window controls
+    ipcMain.on('window-control', (event, arg) => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        switch (arg.action) {
+            case 'minimize':
+                mainWindow.minimize();
+                break;
+            case 'maximize-toggle':
+                if (mainWindow.isMaximized()) {
+                    mainWindow.unmaximize();
+                } else {
+                    mainWindow.maximize();
+                }
+                break;
+            case 'close':
+                mainWindow.close();
+                break;
+        }
+    });
 }
 
 /**

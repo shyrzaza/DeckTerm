@@ -62,6 +62,20 @@ function setupEventHandlers() {
     window.addEventListener('resize', updateTerminalSize);
 }
 
+
+// --- Custom Titlebar Logic ---
+// Window controls using IPC
+document.getElementById('min-btn').addEventListener('click', () => {
+    ipc.send('window-control', { action: 'minimize' });
+});
+document.getElementById('max-btn').addEventListener('click', () => {
+    ipc.send('window-control', { action: 'maximize-toggle' });
+});
+document.getElementById('close-btn').addEventListener('click', () => {
+    ipc.send('window-control', { action: 'close' });
+});
+
+
 // Initialize the terminal interface
 initializeTerminal();
 setupEventHandlers();
