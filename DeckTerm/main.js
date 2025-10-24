@@ -54,11 +54,11 @@ const DEFAULT_SHELL_UNIX = 'bash';
 const WS_PORT = 3000;
 
 // Enable live reload in development mode
-// if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === 'development') {
   require('electron-reload')(__dirname, {
     electron: require(`${__dirname}/node_modules/electron`)
   });
-// }
+}
 
 // Disable hardware acceleration to prevent potential issues
 app.disableHardwareAcceleration();
