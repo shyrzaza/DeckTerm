@@ -54,7 +54,7 @@ DeckTerm can be customized through a configuration file:
    ```
 
 Default paths:
-- Windows: Git Bash (`C:\Program Files\Git\bin\bash.exe`)
+- Windows: Git Bash (`"C:\\WINDOWS\\system32\\cmd.exe"`)
 - macOS/Linux: Bash (`/bin/bash`)
 
 # Stream Deck Integration

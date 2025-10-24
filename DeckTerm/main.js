@@ -1,4 +1,3 @@
-
 /**
  * DeckTerm - An Electron-based terminal application with WebSocket support
  * This application creates a terminal interface that can be controlled both
@@ -7,29 +6,30 @@
 
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 // Handle 'Select shell' dialog from renderer
-ipcMain.on('select-shell-dialog', async (event) => {
-    const win = BrowserWindow.getFocusedWindow();
-    const result = await dialog.showOpenDialog(win, {
-        title: 'Select Shell Executable',
-        properties: ['openFile'],
-        filters: [
-            { name: 'Executables', extensions: process.platform === 'win32' ? ['exe', 'bat', 'cmd'] : ['sh', 'bash', '*'] }
-        ]
-    });
-    if (!result.canceled && result.filePaths && result.filePaths[0]) {
-        const newShellPath = result.filePaths[0];
-        // Write to config.json
-        const newConfig = { customPath: newShellPath };
-        fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2));
-        // Reload shell in running app
-        reloadShell(newShellPath);
-    }
-});
+// ipcMain.on('select-shell-dialog', async (event) => {
+//     const win = BrowserWindow.getFocusedWindow();
+//     const result = await dialog.showOpenDialog(win, {
+//         title: 'Select Shell Executable',
+//         properties: ['openFile'],
+//         filters: [
+//             { name: 'Executables', extensions: process.platform === 'win32' ? ['exe', 'bat', 'cmd'] : ['sh', 'bash', '*'] }
+//         ]
+//     });
+//     if (!result.canceled && result.filePaths && result.filePaths[0]) {
+//         const newShellPath = result.filePaths[0];
+//         // Write to config.json
+//         const newConfig = { customPath: newShellPath };
+//         fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2));
+//         // Reload shell in running app
+//         reloadShell(newShellPath);
+//     }
+// });
 
-// Helper to reload the shell process
 function reloadShell(newShellPath) {
     shell = newShellPath;
     if (ptyProcess) {
+        ptyProcess.removeAllListeners(); // Remove all listeners
+        ptyProcess.write('exit\r');
         try { ptyProcess.kill(); } catch (e) {}
     }
     ptyProcess = pty.spawn(shell, [], {
@@ -39,8 +39,9 @@ function reloadShell(newShellPath) {
         cwd: process.env.HOME,
         env: process.env
     });
-    setupTerminalHandlers();
+    setupTerminalDataHandler();
 }
+
 const pty = require('node-pty');
 const os = require('os');
 const path = require('path');
@@ -53,11 +54,11 @@ const DEFAULT_SHELL_UNIX = 'bash';
 const WS_PORT = 3000;
 
 // Enable live reload in development mode
-if (process.env.NODE_ENV === 'development') {
+// if (process.env.NODE_ENV === 'development') {
   require('electron-reload')(__dirname, {
     electron: require(`${__dirname}/node_modules/electron`)
   });
-}
+// }
 
 // Disable hardware acceleration to prevent potential issues
 app.disableHardwareAcceleration();
@@ -79,9 +80,10 @@ function loadConfig() {
   }
 }
 
-
-
-
+// Handle reload shell session from renderer
+ipcMain.on('terminal.reloadShell', (event, { shellPath }) => {
+    reloadShell(shellPath);
+});
 
 
 const configPath = path.join(app.getPath('userData'), 'config.json');
@@ -158,6 +160,7 @@ function createWindow() {
 
     // Set up terminal event handlers
     setupTerminalHandlers();
+    setupTerminalDataHandler();
 
     // IPC handler for window controls
     ipcMain.on('window-control', (event, arg) => {
@@ -189,19 +192,31 @@ function setupTerminalHandlers() {
         ptyProcess.resize(size.cols, size.rows);
     });
 
-    // Forward terminal output to renderer
+    // Handle keyboard input from renderer
+    ipcMain.on('terminal.keystroke', (event, data) => {
+        ptyProcess.write(data);
+    });
+
+    // Handle font size change from renderer
+    ipcMain.on('terminal.setFontSize', (event, fontSize) => {
+        // Optionally, you can resize the pty based on font size
+        // For example, you could recalculate cols/rows here if needed
+        // This is a placeholder for any logic you want to add
+        // Example: store fontSize or log it
+        console.log('Font size updated:', fontSize);
+        // If you want to resize pty, you could do:
+        // ptyProcess.resize(newCols, newRows);
+    });
+}
+
+function setupTerminalDataHandler(){
+        // Forward terminal output to renderer
     ptyProcess.on('data', (data) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('terminal.incomingData', data);
         }
     });
-
-    // Handle keyboard input from renderer
-    ipcMain.on('terminal.keystroke', (event, data) => {
-        ptyProcess.write(data);
-    });
 }
-
 /**
  * Sets up WebSocket server for remote terminal control
  */
