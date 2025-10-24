@@ -75,6 +75,27 @@ document.getElementById('close-btn').addEventListener('click', () => {
     ipc.send('window-control', { action: 'close' });
 });
 
+// Dropdown menu logic
+document.addEventListener('DOMContentLoaded', function() {
+    const menuBtn = document.getElementById('menu-btn');
+    const menuDropdown = document.getElementById('menu-dropdown');
+
+    menuBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        menuDropdown.classList.toggle('show');
+    });
+
+    // Hide dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (menuDropdown.classList.contains('show')) {
+            if (!menuDropdown.contains(e.target) && e.target !== menuBtn) {
+                menuDropdown.classList.remove('show');
+            }
+        }
+    });
+});
+
+
 
 // Initialize the terminal interface
 initializeTerminal();

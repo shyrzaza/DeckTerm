@@ -32,7 +32,7 @@
   align-items: center;
 }
 
-#min-btn, #max-btn, #close-btn {
+#min-btn, #max-btn, #close-btn, #menu-btn{
   background: transparent;
   border: none;
   color: #ffffff;
@@ -49,7 +49,55 @@
   justify-content: center;
 }
 
-#min-btn:hover, #max-btn:hover {
+#menu-btn{
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 15px;
+  width: 32px;
+  height: 32px;
+  margin-left: 0;
+  cursor: pointer;
+  border-radius: 0;
+  -webkit-app-region: no-drag;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Dropdown menu styles */
+#menu-dropdown {
+  position: absolute;
+  top: 36px;
+  left: 20px;
+  background: #252525;
+  color: #fff;
+  min-width: 140px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  border-radius: 6px;
+  z-index: 9999;
+  display: none;
+  flex-direction: column;
+  padding: 8px 0;
+}
+
+#menu-dropdown.show {
+  display: flex;
+}
+
+#menu-dropdown .dropdown-item {
+  padding: 8px 18px;
+  cursor: pointer;
+  font-size: 15px;
+  transition: background 0.15s;
+}
+
+#menu-dropdown .dropdown-item:hover {
+  background: #444;
+}
+
+#min-btn:hover, #max-btn:hover, #menu-btn:hover {
   background: #919191;
 }
 
@@ -57,10 +105,10 @@
   background: #e81123;
   color: #fff;
 }
-/* filepath: c:\Users\cedri\Documents\Development\Electron\electron-gitbash-wrapper\styles.css */
+
 body { 
     margin: 0px; 
-    background: black; 
+    background: #1E1E1E; 
 }
 
 #terminal {
