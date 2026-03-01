@@ -5,25 +5,6 @@
  */
 
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-// Handle 'Select shell' dialog from renderer
-// ipcMain.on('select-shell-dialog', async (event) => {
-//     const win = BrowserWindow.getFocusedWindow();
-//     const result = await dialog.showOpenDialog(win, {
-//         title: 'Select Shell Executable',
-//         properties: ['openFile'],
-//         filters: [
-//             { name: 'Executables', extensions: process.platform === 'win32' ? ['exe', 'bat', 'cmd'] : ['sh', 'bash', '*'] }
-//         ]
-//     });
-//     if (!result.canceled && result.filePaths && result.filePaths[0]) {
-//         const newShellPath = result.filePaths[0];
-//         // Write to config.json
-//         const newConfig = { customPath: newShellPath };
-//         fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2));
-//         // Reload shell in running app
-//         reloadShell(newShellPath);
-//     }
-// });
 
 function reloadShell(newShellPath) {
     shell = newShellPath;
@@ -85,6 +66,52 @@ ipcMain.on('terminal.reloadShell', (event, { shellPath }) => {
     reloadShell(shellPath);
 });
 
+/**
+ * Scans common system paths for available shell executables.
+ * Runs in the main process where Node.js fs/path access is safe.
+ * @returns {Array<{name: string, exePath: string}>}
+ */
+function findShells() {
+    const shellDefs = [
+        {
+            name: 'PowerShell',
+            paths: [
+                path.join(process.env.SYSTEMROOT || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+                path.join(process.env.SYSTEMROOT || 'C:\\Windows', 'System32', 'powershell.exe')
+            ]
+        },
+        {
+            name: 'Command Prompt',
+            paths: [
+                path.join(process.env.SYSTEMROOT || 'C:\\Windows', 'System32', 'cmd.exe')
+            ]
+        },
+        {
+            name: 'Git Bash',
+            paths: [
+                path.join(process.env['ProgramFiles'] || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
+                path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe')
+            ]
+        }
+    ];
+
+    const foundShells = [];
+    shellDefs.forEach(shell => {
+        for (const shellPath of shell.paths) {
+            try {
+                if (fs.existsSync(shellPath)) {
+                    foundShells.push({ name: shell.name, exePath: shellPath });
+                    break;
+                }
+            } catch (e) {}
+        }
+    });
+    return foundShells;
+}
+
+// Handle shell list request from renderer (invoked via ipcRenderer.invoke)
+ipcMain.handle('shell.getShells', () => findShells());
+
 
 const configPath = path.join(app.getPath('userData'), 'config.json');
 const config = loadConfig();
@@ -134,9 +161,8 @@ function createWindow() {
         y: savedState.y,
         frame: false, // Disable default titlebar
         webPreferences: {
-            nodeIntegration: true,
-            enableRemoteModule: true,
-            contextIsolation: false,
+            contextIsolation: true,
+            nodeIntegration: false,
             preload: path.join(__dirname, 'preload.js')
         }
     });
@@ -192,9 +218,10 @@ function setupTerminalHandlers() {
         ptyProcess.resize(size.cols, size.rows);
     });
 
-    // Handle keyboard input from renderer
+    // Handle keyboard input from renderer — also broadcast to any connected WebSocket clients
     ipcMain.on('terminal.keystroke', (event, data) => {
         ptyProcess.write(data);
+        broadcastToWebSocketClients(data);
     });
 
     // Handle font size change from renderer
@@ -240,10 +267,6 @@ function setupWebSocketServer() {
         });
     });
 
-    // Broadcast terminal keystrokes to all connected clients
-    ipcMain.on('terminal.keystroke', (event, data) => {
-        broadcastToWebSocketClients(data);
-    });
 }
 
 /**

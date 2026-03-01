@@ -1,54 +1,11 @@
-const path = require('path');
-const fs = require('fs');
-
-/**
- * Scans common Windows system paths for shell executables
- * Returns an array of objects: { name, exePath }
- */
-function findShells() {
-    // Common shell locations
-    const shellDefs = [
-        {
-            name: 'PowerShell',
-            paths: [
-                path.join(process.env.SYSTEMROOT || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
-                path.join(process.env.SYSTEMROOT || 'C:\\Windows', 'System32', 'powershell.exe')
-            ]
-        },
-        {
-            name: 'Command Prompt',
-            paths: [
-                path.join(process.env.SYSTEMROOT || 'C:\\Windows', 'System32', 'cmd.exe')
-            ]
-        },
-        {
-            name: 'Git Bash',
-            paths: [
-                path.join(process.env['ProgramFiles'] || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
-                path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe')
-            ]
-        }
-    ];
-
-    const foundShells = [];
-    shellDefs.forEach(shell => {
-        for (const shellPath of shell.paths) {
-            try {
-                if (fs.existsSync(shellPath)) {
-                    foundShells.push({ name: shell.name, exePath: shellPath });
-                    break;
-                }
-            } catch (e) {}
-        }
-    });
-    return foundShells;
-}
 /**
  * DeckTerm Terminal Renderer
- * Handles the terminal UI and communication with the main process
+ * Handles the terminal UI and communication with the main process.
+ *
+ * Node.js APIs (require, fs, path, etc.) are not available here.
+ * All communication with the main process goes through window.electronAPI,
+ * which is defined in preload.js via contextBridge.
  */
-
-const ipc = require('electron').ipcRenderer;
 
 // Terminal configuration
 let currentFontSize = 14;
@@ -84,10 +41,7 @@ function initializeTerminal() {
  */
 function updateTerminalSize() {
     fitAddon.fit();
-    ipc.send('terminal.resize', {
-        cols: terminal.cols,
-        rows: terminal.rows
-    });
+    window.electronAPI.sendResize(terminal.cols, terminal.rows);
 }
 
 /**
@@ -95,13 +49,13 @@ function updateTerminalSize() {
  */
 function setupEventHandlers() {
     // Handle incoming data from the main process
-    ipc.on('terminal.incomingData', (event, data) => {
+    window.electronAPI.onIncomingData((data) => {
         terminal.write(data);
     });
 
     // Handle terminal input
     terminal.onData((data) => {
-        ipc.send('terminal.keystroke', data);
+        window.electronAPI.sendKeystroke(data);
     });
 
     // Handle window resize
@@ -127,15 +81,15 @@ function setupEventHandlers() {
 
 
 // --- Custom Titlebar Logic ---
-// Window controls using IPC
+// Window controls via the contextBridge API
 document.getElementById('min-btn').addEventListener('click', () => {
-    ipc.send('window-control', { action: 'minimize' });
+    window.electronAPI.minimize();
 });
 document.getElementById('max-btn').addEventListener('click', () => {
-    ipc.send('window-control', { action: 'maximize-toggle' });
+    window.electronAPI.maximizeToggle();
 });
 document.getElementById('close-btn').addEventListener('click', () => {
-    ipc.send('window-control', { action: 'close' });
+    window.electronAPI.close();
 });
 
 // Dropdown menu logic
@@ -196,13 +150,12 @@ function initializeDropdownMenu(options) {
  * @param {string} shellPath - Path to the shell executable
  */
 function reloadShellSession(shellPath) {
-
-    ipc.send('terminal.reloadShell', { shellPath });
+    window.electronAPI.reloadShell(shellPath);
     terminal.clear();
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    const shells = findShells();
+document.addEventListener('DOMContentLoaded', async function() {
+    const shells = await window.electronAPI.getShells();
     initializeDropdownMenu({ shells });
 });
 
