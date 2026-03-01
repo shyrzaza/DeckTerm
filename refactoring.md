@@ -118,7 +118,7 @@ Remove the second registration from `setupWebSocketServer()`.
 ---
 
 ### 6. Update Electron to current stable version
-- [ ] **Done**
+- [x] **Done**
 
 **File:** `DeckTerm/package.json`
 
@@ -158,7 +158,7 @@ npx electron-rebuild
 ---
 
 ### 8. Migrate Electron app to TypeScript
-- [ ] **Done**
+- [x] **Done**
 
 **Files:** `DeckTerm/main.js`, `DeckTerm/index.js`, `DeckTerm/preload.js`
 
@@ -175,7 +175,7 @@ As a lower-effort intermediate step, add `// @ts-check` at the top of each `.js`
 ---
 
 ### 9. Replace `var shell` with `let`
-- [ ] **Done**
+- [x] **Done**
 
 **File:** `DeckTerm/main.js`
 
@@ -192,7 +192,7 @@ let shell = config.customPath;
 ---
 
 ### 10. Remove commented-out dead code block
-- [ ] **Done**
+- [x] **Done**
 
 **File:** `DeckTerm/main.js`
 
@@ -312,7 +312,7 @@ Create `.nvmrc` at the repo root:
 ---
 
 ### 18. Fix embedded quotes in `DEFAULT_SHELL_WIN`
-- [ ] **Done**
+- [x] **Done**
 
 **File:** `DeckTerm/main.js`
 
@@ -332,7 +332,7 @@ const DEFAULT_SHELL_WIN = 'C:\\WINDOWS\\system32\\cmd.exe';
 ---
 
 ### 19. Migrate from deprecated `xterm-addon-fit` to `@xterm/addon-fit`
-- [ ] **Done**
+- [x] **Done**
 
 **Files:** `DeckTerm/package.json`, `DeckTerm/index.html`, `DeckTerm/index.js`
 

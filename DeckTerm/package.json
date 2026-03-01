@@ -1,11 +1,13 @@
 {
   "name": "deck-term",
   "version": "0.6.0",
-  "main": "main.js",
+  "main": "out/main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron .",
-    "dist": "electron-builder"
+    "compile": "tsc",
+    "watch": "tsc --watch",
+    "start": "tsc && electron .",
+    "dist": "tsc && electron-builder"
   },
   "keywords": [],
   "author": "Cedric Fromm",
@@ -17,11 +19,8 @@
     },
     "files": [
       "build/**/*",
-      "dist/**/*",
-      "main.js",
-      "index.js",
+      "out/**/*",
       "index.html",
-      "preload.js",
       "styles.css",
       "package.json"
     ],
@@ -50,15 +49,18 @@
   "license": "ISC",
   "description": "Electron Terminal controllable using StreamDeck",
   "dependencies": {
-    "node-pty": "^1.0.0",
-    "ws": "^8.18.3",
-    "xterm": "^5.3.0",
-    "xterm-addon-fit": "^0.7.0"
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "node-pty": "^1.1.0",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
-    "electron": "^27.0.0",
+    "@types/node": "^25.3.3",
+    "@types/ws": "^8.18.1",
+    "electron": "^40.6.1",
     "electron-builder": "^26.0.12",
     "electron-rebuild": "^3.2.9",
-    "electron-reload": "^2.0.0-alpha.1"
+    "electron-reload": "^2.0.0-alpha.1",
+    "typescript": "^5.9.3"
   }
 }

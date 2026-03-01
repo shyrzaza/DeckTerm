@@ -6,22 +6,33 @@
  * no Node.js or Electron internals leak through.
  */
 
-const { contextBridge, ipcRenderer } = require('electron');
+import { contextBridge, ipcRenderer } from 'electron';
+
+export interface ElectronAPI {
+    sendResize: (cols: number, rows: number) => void;
+    sendKeystroke: (data: string) => void;
+    onIncomingData: (callback: (data: string) => void) => void;
+    getShells: () => Promise<Array<{ name: string; exePath: string }>>;
+    reloadShell: (shellPath: string) => void;
+    minimize: () => void;
+    maximizeToggle: () => void;
+    close: () => void;
+}
 
 contextBridge.exposeInMainWorld('electronAPI', {
     // ── Terminal I/O ────────────────────────────────────────────────────────
 
     /** Send updated terminal dimensions to the main process. */
-    sendResize: (cols, rows) =>
+    sendResize: (cols: number, rows: number) =>
         ipcRenderer.send('terminal.resize', { cols, rows }),
 
     /** Forward a keystroke from the terminal UI to the pty. */
-    sendKeystroke: (data) =>
+    sendKeystroke: (data: string) =>
         ipcRenderer.send('terminal.keystroke', data),
 
     /** Register a callback that fires whenever the pty produces output. */
-    onIncomingData: (callback) =>
-        ipcRenderer.on('terminal.incomingData', (_, data) => callback(data)),
+    onIncomingData: (callback: (data: string) => void) =>
+        ipcRenderer.on('terminal.incomingData', (_event, data: string) => callback(data)),
 
     // ── Shell management ────────────────────────────────────────────────────
 
@@ -30,7 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('shell.getShells'),
 
     /** Tell the main process to restart the pty with a different shell. */
-    reloadShell: (shellPath) =>
+    reloadShell: (shellPath: string) =>
         ipcRenderer.send('terminal.reloadShell', { shellPath }),
 
     // ── Window controls ─────────────────────────────────────────────────────
@@ -43,4 +54,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     close: () =>
         ipcRenderer.send('window-control', { action: 'close' }),
-});
+} satisfies ElectronAPI);
