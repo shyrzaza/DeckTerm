@@ -14,6 +14,8 @@ export interface ElectronAPI {
     onIncomingData: (callback: (data: string) => void) => void;
     getShells: () => Promise<Array<{ name: string; exePath: string }>>;
     reloadShell: (shellPath: string) => void;
+    getFontSize: () => Promise<number>;
+    saveFontSize: (size: number) => void;
     minimize: () => void;
     maximizeToggle: () => void;
     close: () => void;
@@ -43,6 +45,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** Tell the main process to restart the pty with a different shell. */
     reloadShell: (shellPath: string) =>
         ipcRenderer.send('terminal.reloadShell', { shellPath }),
+
+    /** Retrieve the saved font size from config. */
+    getFontSize: () =>
+        ipcRenderer.invoke('config.getFontSize'),
+
+    /** Persist the current font size to config. */
+    saveFontSize: (size: number) =>
+        ipcRenderer.send('config.setFontSize', size),
 
     // ── Window controls ─────────────────────────────────────────────────────
 

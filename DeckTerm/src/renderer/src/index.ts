@@ -1,51 +1,51 @@
 /**
- * DeckTerm Terminal Renderer
+ * DeckTerm Renderer
+ *
  * Handles the terminal UI and communication with the main process.
- *
- * This file is loaded as a plain <script> tag in index.html. It must NOT
- * contain top-level import/export statements — Node.js and CommonJS are not
- * available in the renderer (contextIsolation: true, nodeIntegration: false).
- * All main-process communication goes through window.electronAPI (preload.js).
- *
- * Terminal and FitAddon are UMD globals injected by the @xterm script tags.
+ * Bundled by Vite — ES module imports are fully supported here.
+ * All main-process communication goes through window.electronAPI (preload).
  */
 
-// ── Ambient declarations for UMD globals loaded via <script> tags ───────────
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import '@xterm/xterm/css/xterm.css';
+import './styles.css';
 
-declare const Terminal: typeof import('@xterm/xterm').Terminal;
-declare const FitAddon: { FitAddon: new () => import('@xterm/addon-fit').FitAddon };
+// ── Type declaration for the contextBridge API ───────────────────────────────
 
-// ── Window interface extension for the contextBridge API ────────────────────
-
-interface Window {
-    electronAPI: {
-        sendResize: (cols: number, rows: number) => void;
-        sendKeystroke: (data: string) => void;
-        onIncomingData: (callback: (data: string) => void) => void;
-        getShells: () => Promise<Array<{ name: string; exePath: string }>>;
-        reloadShell: (shellPath: string) => void;
-        minimize: () => void;
-        maximizeToggle: () => void;
-        close: () => void;
-    };
+declare global {
+    interface Window {
+        electronAPI: {
+            sendResize: (cols: number, rows: number) => void;
+            sendKeystroke: (data: string) => void;
+            onIncomingData: (callback: (data: string) => void) => void;
+            getShells: () => Promise<Array<{ name: string; exePath: string }>>;
+            reloadShell: (shellPath: string) => void;
+            getFontSize: () => Promise<number>;
+            saveFontSize: (size: number) => void;
+            minimize: () => void;
+            maximizeToggle: () => void;
+            close: () => void;
+        };
+    }
 }
 
 // ── Terminal setup ───────────────────────────────────────────────────────────
 
 let currentFontSize = 14;
-const TERMINAL_OPTIONS = {
+
+const terminal = new Terminal({
     cursorBlink: true,
-    cursorStyle: 'block' as const,
+    cursorStyle: 'block',
     fontSize: currentFontSize,
     fontFamily: 'Consolas, monospace',
     theme: {
         background: '#1E1E1E',
         foreground: '#D4D4D4'
     }
-};
+});
 
-const terminal = new Terminal(TERMINAL_OPTIONS);
-const fitAddon = new FitAddon.FitAddon();
+const fitAddon = new FitAddon();
 
 /**
  * Mounts the terminal in the DOM and loads its addons.
@@ -58,7 +58,7 @@ function initializeTerminal(): void {
 }
 
 /**
- * Recalculates terminal dimensions and sends them to the main process.
+ * Recalculates terminal dimensions and notifies the main process.
  */
 function updateTerminalSize(): void {
     fitAddon.fit();
@@ -69,22 +69,18 @@ function updateTerminalSize(): void {
  * Wires up all event listeners for terminal I/O and window interactions.
  */
 function setupEventHandlers(): void {
-    // Pipe pty output to the terminal screen
-    window.electronAPI.onIncomingData((data: string) => {
+    window.electronAPI.onIncomingData((data) => {
         terminal.write(data);
     });
 
-    // Forward keystrokes to the pty
-    terminal.onData((data: string) => {
+    terminal.onData((data) => {
         window.electronAPI.sendKeystroke(data);
     });
 
-    // Refit on window resize
     window.addEventListener('resize', updateTerminalSize);
 
     // Ctrl + Scroll wheel to zoom font size
-    const terminalDiv = document.getElementById('terminal')!;
-    terminalDiv.addEventListener('wheel', (e: WheelEvent) => {
+    document.getElementById('terminal')!.addEventListener('wheel', (e: WheelEvent) => {
         if (e.ctrlKey) {
             e.preventDefault();
             currentFontSize = e.deltaY < 0
@@ -92,21 +88,16 @@ function setupEventHandlers(): void {
                 : Math.max(currentFontSize - 1, 8);
             terminal.options.fontSize = currentFontSize;
             fitAddon.fit();
+            window.electronAPI.saveFontSize(currentFontSize);
         }
     });
 }
 
 // ── Custom titlebar ──────────────────────────────────────────────────────────
 
-document.getElementById('min-btn')!.addEventListener('click', () => {
-    window.electronAPI.minimize();
-});
-document.getElementById('max-btn')!.addEventListener('click', () => {
-    window.electronAPI.maximizeToggle();
-});
-document.getElementById('close-btn')!.addEventListener('click', () => {
-    window.electronAPI.close();
-});
+document.getElementById('min-btn')!.addEventListener('click', () => window.electronAPI.minimize());
+document.getElementById('max-btn')!.addEventListener('click', () => window.electronAPI.maximizeToggle());
+document.getElementById('close-btn')!.addEventListener('click', () => window.electronAPI.close());
 
 // ── Shell switcher dropdown ──────────────────────────────────────────────────
 
@@ -132,7 +123,6 @@ function initializeDropdownMenu(options: DropdownOptions): void {
     }
 
     menuDropdown.innerHTML = '';
-
     menuItems.forEach(item => {
         const div = document.createElement('div');
         div.className = 'dropdown-item';
@@ -140,18 +130,19 @@ function initializeDropdownMenu(options: DropdownOptions): void {
         if (shellMap[item]) {
             div.addEventListener('click', () => {
                 menuDropdown.classList.remove('show');
-                reloadShellSession(shellMap[item]);
+                window.electronAPI.reloadShell(shellMap[item]);
+                terminal.clear();
             });
         }
         menuDropdown.appendChild(div);
     });
 
-    menuBtn.addEventListener('click', (e: MouseEvent) => {
+    menuBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         menuDropdown.classList.toggle('show');
     });
 
-    document.addEventListener('click', (e: MouseEvent) => {
+    document.addEventListener('click', (e) => {
         if (menuDropdown.classList.contains('show')) {
             if (!menuDropdown.contains(e.target as Node) && e.target !== menuBtn) {
                 menuDropdown.classList.remove('show');
@@ -160,18 +151,15 @@ function initializeDropdownMenu(options: DropdownOptions): void {
     });
 }
 
-/**
- * Restarts the pty with the chosen shell and clears the terminal screen.
- */
-function reloadShellSession(shellPath: string): void {
-    window.electronAPI.reloadShell(shellPath);
-    terminal.clear();
-}
-
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const shells = await window.electronAPI.getShells();
+    const [shells, savedFontSize] = await Promise.all([
+        window.electronAPI.getShells(),
+        window.electronAPI.getFontSize()
+    ]);
+    currentFontSize = savedFontSize;
+    terminal.options.fontSize = currentFontSize;
     initializeDropdownMenu({ shells });
 });
 

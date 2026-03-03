@@ -1,13 +1,13 @@
 {
   "name": "deck-term",
   "version": "0.6.0",
-  "main": "out/main.js",
+  "main": "out/main/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "compile": "tsc",
-    "watch": "tsc --watch",
-    "start": "tsc && electron .",
-    "dist": "tsc && electron-builder"
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "dist": "electron-vite build && electron-builder"
   },
   "keywords": [],
   "author": "Cedric Fromm",
@@ -18,10 +18,8 @@
       "output": "dist"
     },
     "files": [
-      "build/**/*",
       "out/**/*",
-      "index.html",
-      "styles.css",
+      "build/**/*",
       "package.json"
     ],
     "extraResources": [],
@@ -60,7 +58,7 @@
     "electron": "^40.6.1",
     "electron-builder": "^26.0.12",
     "electron-rebuild": "^3.2.9",
-    "electron-reload": "^2.0.0-alpha.1",
+    "electron-vite": "^5.0.0",
     "typescript": "^5.9.3"
   }
 }

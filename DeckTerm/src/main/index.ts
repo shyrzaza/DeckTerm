@@ -1,7 +1,7 @@
 /**
- * DeckTerm - An Electron-based terminal application with WebSocket support
- * This application creates a terminal interface that can be controlled both
- * through direct keyboard input and remote WebSocket commands.
+ * DeckTerm - Main Process
+ *
+ * Manages the BrowserWindow, pty, IPC handlers, and WebSocket server.
  */
 
 import { app, BrowserWindow, ipcMain } from 'electron';
@@ -17,19 +17,12 @@ const DEFAULT_SHELL_WIN = 'C:\\WINDOWS\\system32\\cmd.exe';
 const DEFAULT_SHELL_UNIX = 'bash';
 const WS_PORT = 3000;
 
-// Enable live reload in development mode
-if (process.env.NODE_ENV === 'development') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  require('electron-reload')(path.join(__dirname, '..'), {
-    electron: require(path.join(__dirname, '..', 'node_modules', 'electron'))
-  });
-}
-
 // Disable hardware acceleration to prevent potential issues
 app.disableHardwareAcceleration();
 
 interface AppConfig {
   customPath: string;
+  fontSize?: number;
 }
 
 interface ShellEntry {
@@ -44,6 +37,9 @@ interface WindowState {
   y: number;
 }
 
+const configPath = path.join(app.getPath('userData'), 'config.json');
+const windowStatePath = path.join(app.getPath('userData'), 'window-state.json');
+
 /**
  * Loads the application configuration from the config file.
  */
@@ -51,22 +47,43 @@ function loadConfig(): AppConfig {
   try {
     const data = fs.readFileSync(configPath, 'utf-8');
     return JSON.parse(data) as AppConfig;
-  } catch (err) {
-    console.error('Failed to read config file:', err);
+  } catch {
     return {
       customPath: os.platform() === 'win32' ? DEFAULT_SHELL_WIN : DEFAULT_SHELL_UNIX
     };
   }
 }
 
-// Handle reload shell session from renderer
+const config = loadConfig();
+let shell = config.customPath;
+let wss: WebSocketServer;
+let mainWindow: BrowserWindow | null = null;
+let ptyProcess: IPty | null = null;
+let dataDisposable: IDisposable | null = null;
+
+// ── IPC handlers registered at startup ──────────────────────────────────────
+
 ipcMain.on('terminal.reloadShell', (_event, { shellPath }: { shellPath: string }) => {
     reloadShell(shellPath);
 });
 
+ipcMain.on('config.setFontSize', (_event, fontSize: number) => {
+    config.fontSize = fontSize;
+    try {
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    } catch (err) {
+        console.error('Failed to save font size:', err);
+    }
+});
+
+ipcMain.handle('config.getFontSize', () => config.fontSize ?? 14);
+
+ipcMain.handle('shell.getShells', () => findShells());
+
+// ── Shell detection ──────────────────────────────────────────────────────────
+
 /**
  * Scans common system paths for available shell executables.
- * Runs in the main process where Node.js fs/path access is safe.
  */
 function findShells(): ShellEntry[] {
     const shellDefs = [
@@ -93,53 +110,36 @@ function findShells(): ShellEntry[] {
     ];
 
     const foundShells: ShellEntry[] = [];
-    shellDefs.forEach(shellDef => {
-        for (const shellPath of shellDef.paths) {
+    for (const def of shellDefs) {
+        for (const shellPath of def.paths) {
             try {
                 if (fs.existsSync(shellPath)) {
-                    foundShells.push({ name: shellDef.name, exePath: shellPath });
+                    foundShells.push({ name: def.name, exePath: shellPath });
                     break;
                 }
-            } catch (e) { /* skip inaccessible paths */ }
+            } catch { /* skip inaccessible paths */ }
         }
-    });
+    }
     return foundShells;
 }
 
-// Handle shell list request from renderer
-ipcMain.handle('shell.getShells', () => findShells());
+// ── Window state ─────────────────────────────────────────────────────────────
 
-const configPath = path.join(app.getPath('userData'), 'config.json');
-const config = loadConfig();
-
-let shell = config.customPath;
-let wss: WebSocketServer;
-let mainWindow: BrowserWindow | null;
-let ptyProcess: IPty | null = null;
-let dataDisposable: IDisposable | null = null;
-
-const windowStatePath = path.join(app.getPath('userData'), 'window-state.json');
-
-/**
- * Loads saved window bounds from disk, falling back to sensible defaults.
- */
 function loadWindowState(): WindowState {
   try {
     return JSON.parse(fs.readFileSync(windowStatePath, 'utf8')) as WindowState;
-  } catch (e) {
+  } catch {
     return { width: 800, height: 600, x: 0, y: 0 };
   }
 }
 
-/**
- * Persists the current window bounds to disk.
- */
 function saveWindowState(window: BrowserWindow): void {
   if (!window.isDestroyed()) {
-    const bounds = window.getBounds();
-    fs.writeFileSync(windowStatePath, JSON.stringify(bounds));
+    fs.writeFileSync(windowStatePath, JSON.stringify(window.getBounds()));
   }
 }
+
+// ── Shell / pty management ───────────────────────────────────────────────────
 
 /**
  * Tears down the current pty and spawns a new one with the given shell.
@@ -150,7 +150,7 @@ function reloadShell(newShellPath: string): void {
         dataDisposable?.dispose();
         dataDisposable = null;
         ptyProcess.write('exit\r');
-        try { ptyProcess.kill(); } catch (e) { /* ignore if already dead */ }
+        try { ptyProcess.kill(); } catch { /* ignore if already dead */ }
     }
     ptyProcess = pty.spawn(shell, [], {
         name: 'xterm-color',
@@ -162,9 +162,8 @@ function reloadShell(newShellPath: string): void {
     setupTerminalDataHandler();
 }
 
-/**
- * Creates the main application window and initialises the terminal process.
- */
+// ── Window creation ──────────────────────────────────────────────────────────
+
 function createWindow(): void {
     const savedState = loadWindowState();
     mainWindow = new BrowserWindow({
@@ -176,12 +175,19 @@ function createWindow(): void {
         webPreferences: {
             contextIsolation: true,
             nodeIntegration: false,
-            preload: path.join(__dirname, 'preload.js')
+            preload: path.join(__dirname, '../preload/index.js')
         }
     });
 
     mainWindow.setMenuBarVisibility(false);
-    mainWindow.loadFile(path.join(__dirname, '..', 'index.html'));
+
+    // In development, electron-vite sets ELECTRON_RENDERER_URL for HMR.
+    // In production, load the built HTML file directly.
+    if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
+        mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
+    } else {
+        mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    }
 
     mainWindow.on('close', () => { if (mainWindow) saveWindowState(mainWindow); });
     mainWindow.on('closed', () => { mainWindow = null; });
@@ -207,28 +213,19 @@ function createWindow(): void {
     });
 }
 
-/**
- * Registers IPC handlers for terminal I/O and font size changes.
- */
+// ── Terminal IPC handlers ────────────────────────────────────────────────────
+
 function setupTerminalHandlers(): void {
     ipcMain.on('terminal.resize', (_event, size: { cols: number; rows: number }) => {
         ptyProcess?.resize(size.cols, size.rows);
     });
 
-    // Handle keyboard input — also broadcast to any connected WebSocket clients
     ipcMain.on('terminal.keystroke', (_event, data: string) => {
         ptyProcess?.write(data);
         broadcastToWebSocketClients(data);
     });
-
-    ipcMain.on('terminal.setFontSize', (_event, fontSize: number) => {
-        console.log('Font size updated:', fontSize);
-    });
 }
 
-/**
- * Pipes pty output to the renderer via IPC.
- */
 function setupTerminalDataHandler(): void {
     dataDisposable = ptyProcess?.onData((data: string) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -237,9 +234,8 @@ function setupTerminalDataHandler(): void {
     }) ?? null;
 }
 
-/**
- * Starts the WebSocket server on WS_PORT and routes incoming commands.
- */
+// ── WebSocket server ─────────────────────────────────────────────────────────
+
 function setupWebSocketServer(): void {
     wss = new WebSocketServer({ port: WS_PORT });
 
@@ -255,46 +251,31 @@ function setupWebSocketServer(): void {
             }
         });
 
-        ws.on('error', (error) => {
-            console.error('WebSocket error:', error);
-        });
+        ws.on('error', (error) => console.error('WebSocket error:', error));
     });
 }
 
-/**
- * Dispatches a parsed WebSocket command to the pty.
- */
 function handleWebSocketCommand(command: { cmd: string; terminalcommand?: string; path?: string }): void {
     switch (command.cmd) {
         case 'command':
-            if (command.terminalcommand) {
-                ptyProcess?.write(`${command.terminalcommand}\n`);
-            }
+            if (command.terminalcommand) ptyProcess?.write(`${command.terminalcommand}\n`);
             break;
-
         case 'open':
-            if (command.path) {
-                ptyProcess?.write(`cd "${command.path}"\n`);
-            }
+            if (command.path) ptyProcess?.write(`cd "${command.path}"\n`);
             break;
-
         default:
             console.error('Unknown WebSocket command:', command.cmd);
     }
 }
 
-/**
- * Sends data to all connected WebSocket clients.
- */
 function broadcastToWebSocketClients(data: string): void {
     wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(data);
-        }
+        if (client.readyState === WebSocket.OPEN) client.send(data);
     });
 }
 
-// Application event handlers
+// ── App lifecycle ────────────────────────────────────────────────────────────
+
 app.on('ready', () => {
     createWindow();
     setupWebSocketServer();

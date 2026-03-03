@@ -3,12 +3,12 @@ import { WebSocket } from "ws";
 
 
 @action({ UUID: "com.cedfro.deck-term.terminalcommand" })
-export class TerminalCommandAction extends SingletonAction<GitBashSettings> {
-    override onWillAppear(ev: WillAppearEvent<GitBashSettings>): void | Promise<void> {
+export class TerminalCommandAction extends SingletonAction<TerminalCommandSettings> {
+    override onWillAppear(ev: WillAppearEvent<TerminalCommandSettings>): void | Promise<void> {
         return ev.action.setTitle("Terminal Command");
     }
 
-    override async onKeyDown(ev: KeyDownEvent<GitBashSettings>): Promise<void> {
+    override async onKeyDown(ev: KeyDownEvent<TerminalCommandSettings>): Promise<void> {
         // Connect to the WebSocket server
         const ws = new WebSocket("ws://localhost:3000");
 
@@ -32,7 +32,7 @@ export class TerminalCommandAction extends SingletonAction<GitBashSettings> {
     }
 }
 
-type GitBashSettings = {
+type TerminalCommandSettings = {
     terminalcommand: string;
 };
 

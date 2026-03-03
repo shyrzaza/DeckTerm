@@ -203,7 +203,7 @@ Delete the entire commented block at the top of the file.
 ---
 
 ### 11. Rename `GitBashSettings` type in the plugin
-- [ ] **Done**
+- [x] **Done**
 
 **File:** `StreamDeckPlugin/deck-term/src/actions/deck-term.ts`
 
@@ -226,7 +226,7 @@ Update the generic parameter on `SingletonAction<GitBashSettings>` and both even
 ---
 
 ### 12. Persist font size to config
-- [ ] **Done**
+- [x] **Done**
 
 **Files:** `DeckTerm/index.js`, `DeckTerm/main.js`
 
@@ -269,7 +269,7 @@ No GitHub Actions workflow exists. Without CI, broken builds and type errors can
 ---
 
 ### 15. Replace `electron-reload` alpha dependency
-- [ ] **Done**
+- [x] **Done**
 
 **File:** `DeckTerm/package.json`
 
