@@ -10,6 +10,7 @@ import type { IPty, IDisposable } from 'node-pty';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 
 // Constants
@@ -39,6 +40,7 @@ interface WindowState {
 
 const configPath = path.join(app.getPath('userData'), 'config.json');
 const windowStatePath = path.join(app.getPath('userData'), 'window-state.json');
+const wsTokenPath = path.join(app.getPath('userData'), 'ws-token.json');
 
 /**
  * Loads the application configuration from the config file.
@@ -60,6 +62,22 @@ let wss: WebSocketServer;
 let mainWindow: BrowserWindow | null = null;
 let ptyProcess: IPty | null = null;
 let dataDisposable: IDisposable | null = null;
+
+/** Tracks which WebSocket connections have successfully authenticated. */
+const authenticatedClients = new Set<WebSocket>();
+
+/**
+ * Loads an existing WS auth token from disk, or generates and persists a new one.
+ */
+function loadOrCreateToken(): string {
+  try {
+    const data = JSON.parse(fs.readFileSync(wsTokenPath, 'utf-8')) as { token?: string };
+    if (data.token) return data.token;
+  } catch { /* fall through to generate */ }
+  const token = crypto.randomUUID();
+  fs.writeFileSync(wsTokenPath, JSON.stringify({ token }, null, 2));
+  return token;
+}
 
 // ── IPC handlers registered at startup ──────────────────────────────────────
 
@@ -237,6 +255,7 @@ function setupTerminalDataHandler(): void {
 // ── WebSocket server ─────────────────────────────────────────────────────────
 
 function setupWebSocketServer(): void {
+    const token = loadOrCreateToken();
     wss = new WebSocketServer({ port: WS_PORT });
 
     wss.on('connection', (ws) => {
@@ -244,11 +263,28 @@ function setupWebSocketServer(): void {
 
         ws.on('message', (message) => {
             try {
-                const command = JSON.parse(message.toString()) as { cmd: string; terminalcommand?: string; path?: string };
-                handleWebSocketCommand(command);
+                const parsed = JSON.parse(message.toString()) as Record<string, unknown>;
+
+                if (!authenticatedClients.has(ws)) {
+                    // First message must be the auth handshake.
+                    if (parsed.auth === token) {
+                        authenticatedClients.add(ws);
+                        console.log('WebSocket client authenticated');
+                    } else {
+                        console.warn('WebSocket client failed authentication — closing connection');
+                        ws.close(1008, 'Unauthorized');
+                    }
+                    return;
+                }
+
+                handleWebSocketCommand(parsed as { cmd: string; terminalcommand?: string; path?: string });
             } catch (error) {
                 console.error('Error processing WebSocket message:', error);
             }
+        });
+
+        ws.on('close', () => {
+            authenticatedClients.delete(ws);
         });
 
         ws.on('error', (error) => console.error('WebSocket error:', error));

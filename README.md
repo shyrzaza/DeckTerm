@@ -1,6 +1,6 @@
 # DeckTerm
 
-A terminal emulator built with Electron that supports remote control via Streamdeck Plugin through WebSocket connections.
+A terminal emulator built with Electron that supports remote control via a Stream Deck plugin through a WebSocket connection.
 
 <img src="DeckTerm/build/DeckTerm.png" alt="DeckTerm Terminal" width="300">
 
@@ -18,44 +18,48 @@ A terminal emulator built with Electron that supports remote control via Streamd
 
 DeckTerm is built using three main components:
 
-1. **Terminal UI (xterm.js)**
+1. **Terminal UI (@xterm/xterm)**
    - Provides the terminal interface
    - Handles text rendering and input capture
    - Supports terminal colors and formatting
 
 2. **Shell Process (node-pty)**
    - Manages the actual terminal process
-   - Supports various shells (Git Bash, cmd, bash, etc.)
+   - Supports any shell (PowerShell, cmd, Git Bash, bash, zsh, …)
    - Handles command execution
 
 3. **Remote Control (WebSocket)**
    - Enables external control of the terminal
    - Allows sending commands remotely
-   - Supports multiple client connections
+   - Token-authenticated — see [WebSocket API](#websocket-api) below
 
 # DeckTerm Application
+
 ## Installation
 
-1. Install the DeckTerm application via one of the released installers
+1. Install the DeckTerm application via one of the released installers.
 
 ## Configuration
 
-DeckTerm can be customized through a configuration file:
+DeckTerm stores its configuration in the Electron `userData` directory:
 
-1. Create a `config.json` file at:
-   - Windows: `%APPDATA%\DeckTerm\config.json`
-   - macOS/Linux: `~/.config/DeckTerm/config.json`
+- **Windows:** `%APPDATA%\DeckTerm\config.json`
+- **macOS:** `~/Library/Application Support/DeckTerm/config.json`
+- **Linux:** `~/.config/DeckTerm/config.json`
 
-2. Add your preferred shell configuration:
-   ```json
-   {
-     "customPath": "C:\\Program Files\\Git\\bin\\bash.exe"
-   }
-   ```
+Supported fields:
 
-Default paths:
-- Windows: Git Bash (`"C:\\WINDOWS\\system32\\cmd.exe"`)
-- macOS/Linux: Bash (`/bin/bash`)
+```json
+{
+  "customPath": "C:\\Program Files\\Git\\bin\\bash.exe",
+  "fontSize": 14
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `customPath` | string | Full path to the shell executable. Defaults to `cmd.exe` on Windows and `bash` on macOS/Linux. |
+| `fontSize` | number | Terminal font size in px. Defaults to `14`. Can be changed at runtime with Ctrl+Scroll and is saved automatically. |
 
 # Stream Deck Integration
 
@@ -63,18 +67,27 @@ DeckTerm comes with a built-in Stream Deck plugin that makes it easy to control 
 
 ## Installing the Stream Deck Plugin
 
-1. Find the plugin in the `StreamDeck SDK/deck-term/` directory
-2. Double-click the `com.cedfro.deck-term.streamDeckPlugin` file to install
-3. Stream Deck will automatically recognize the plugin
+1. Find the plugin package in the `StreamDeckPlugin/deck-term/` directory.
+2. Double-click the `com.cedfro.deck-term.streamDeckPlugin` file to install.
+3. Stream Deck software will automatically recognize and install the plugin.
 
 ## Creating Custom Actions
 
-1. Drag the DeckTerm action onto your Stream Deck
-2. Configure the action with any terminal command:
-   - Git commands: `git status`, `git pull`, `git push`
-   - Directory navigation: `cd /your/path`
-   - Custom shell commands: `npm start`, `docker ps`
-   - Any valid terminal command!
+Two actions are available:
+
+### Terminal Command
+Sends any shell command to the active terminal session.
+
+1. Drag the **Terminal Command** action onto a Stream Deck key.
+2. Enter the command in the Property Inspector, e.g. `git status`, `npm start`, `docker ps`.
+3. Press the key — the command is typed into your terminal as if you had typed it yourself.
+
+### Open Terminal
+Changes the working directory of the active terminal session.
+
+1. Drag the **Open Terminal** action onto a Stream Deck key.
+2. Enter the target directory path in the Property Inspector.
+3. Press the key — DeckTerm runs `cd "<path>"` in the active shell.
 
 ## Example Use Cases
 
@@ -87,35 +100,79 @@ DeckTerm comes with a built-in Stream Deck plugin that makes it easy to control 
 
 # WebSocket API
 
-The Stream Deck plugin uses DeckTerm's WebSocket API (port 3000) to communicate with the terminal. You can also use this API for your own integrations:
+DeckTerm exposes a WebSocket server on port **3000**. The Stream Deck plugin uses it internally, but any local tool can integrate with it using the same protocol.
 
-```javascript
-// Execute a command
-{
-    "cmd": "command",
-    "terminalcommand": "git status"
-}
+## Authentication
 
-// Change directory
-{
-    "cmd": "open",
-    "path": "/path/to/directory"
-}
+Every connection must authenticate **before** sending commands. On startup, DeckTerm generates a token and writes it to:
+
+- **Windows:** `%APPDATA%\DeckTerm\ws-token.json`
+- **macOS:** `~/Library/Application Support/DeckTerm/ws-token.json`
+- **Linux:** `~/.config/DeckTerm/ws-token.json`
+
+The file contains:
+
+```json
+{ "token": "<uuid>" }
 ```
 
-This makes it easy to:
-- Create your own custom integrations
-- Automate terminal commands
-- Control DeckTerm from other applications
+Send the auth message as the **first** message after connecting. Any connection that sends a command before authenticating, or sends the wrong token, is immediately closed.
+
+```json
+{ "auth": "<token>" }
+```
+
+## Commands
+
+After authenticating, send one of the following:
+
+```json
+// Execute a shell command
+{ "cmd": "command", "terminalcommand": "git status" }
+
+// Change directory
+{ "cmd": "open", "path": "/path/to/directory" }
+```
+
+## Security boundary
+
+The token protects against generic and opportunistic abuse: port scanners, random malware hitting port 3000, other tools accidentally connecting. It does **not** protect against a targeted process running as the **same OS user**, because that process can read the token file directly. This is an intentional, documented limit — any same-user process already has full shell access and does not need DeckTerm to cause harm.
+
+If you need stronger isolation, consider running DeckTerm under a dedicated OS user account or switching the transport to a named pipe (contributions welcome).
 
 ## Development
 
-Built with:
-- Electron - Desktop application framework
-- xterm.js - Terminal emulator
-- node-pty - Shell process management
-- WebSocket - Remote control capabilities
+### Electron App
+
+```bash
+cd DeckTerm
+npm install
+npm run dev     # development mode with HMR (electron-vite)
+npm run build   # production build
+npm run dist    # build distributable installers
+```
+
+### Stream Deck Plugin
+
+```bash
+cd StreamDeckPlugin/deck-term
+npm install
+npm run build   # single production build → com.cedfro.deck-term.sdPlugin/bin/plugin.js
+npm run watch   # incremental build + auto-restart inside Stream Deck software
+```
+
+### Tech stack
+
+| Component | Technology |
+|---|---|
+| Desktop framework | Electron 40 |
+| Terminal renderer | @xterm/xterm + @xterm/addon-fit |
+| Shell process | node-pty |
+| WebSocket | ws |
+| Build tool | electron-vite |
+| Language | TypeScript (both app and plugin) |
+| Stream Deck SDK | @elgato/streamdeck |
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the ISC License — see the [LICENSE](LICENSE) file for details.

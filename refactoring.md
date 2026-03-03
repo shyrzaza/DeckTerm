@@ -58,7 +58,7 @@ Then update `index.js` to use `window.electronAPI.send(...)` / `window.electronA
 ## 🟠 High
 
 ### 3. Add WebSocket authentication
-- [ ] **Done**
+- [x] **Done**
 
 **File:** `DeckTerm/main.js`
 
@@ -68,6 +68,8 @@ The WebSocket server on port 3000 accepts any JSON from any local process with z
 2. Write it to a known local file (e.g. `userData/ws-token.json`).
 3. Require all WebSocket clients to send `{ "auth": "<token>" }` as the first message before any command is accepted.
 4. The Stream Deck plugin reads the token file on connection.
+
+**Security boundary:** This token protects against generic/opportunistic abuse — port scanners, random malware, accidental connections from other tools using port 3000. It does **not** protect against a targeted process running as the same OS user, because that process can read `userData/ws-token.json` directly. This is an intentional, documented limit: any same-user process already has full shell access and does not need DeckTerm to cause harm. The token raises the bar; it is not a sandbox.
 
 ---
 
@@ -134,26 +136,6 @@ After upgrading, verify that `node-pty` native bindings are rebuilt for the new 
 ```bash
 npx electron-rebuild
 ```
-
----
-
-## 🟡 Medium
-
-### 7. Break up the monolithic `main.js`
-- [ ] **Done**
-
-**File:** `DeckTerm/main.js`
-
-`main.js` is ~300 lines handling four distinct concerns: window lifecycle, pty process management, IPC routing, and WebSocket server. This makes it hard to read, test, or contribute to. Split into focused modules under a `src/` directory:
-
-| New file | Responsibility |
-|---|---|
-| `src/windowManager.js` | `createWindow`, `loadWindowState`, `saveWindowState` |
-| `src/ptyManager.js` | `spawnPty`, `reloadShell`, `setupTerminalDataHandler` |
-| `src/ipcHandlers.js` | All `ipcMain.on(...)` registrations |
-| `src/wsServer.js` | WebSocket server setup, `handleWebSocketCommand`, `broadcastToWebSocketClients` |
-| `src/config.js` | `loadConfig`, `configPath`, constants |
-| `main.js` | Thin entry point that imports and wires the above together |
 
 ---
 
