@@ -219,22 +219,6 @@ Approach:
 2. In `main.js`, handle that message by merging the value into `config.json` on disk.
 3. On startup, read `fontSize` from config and pass it to the renderer as part of the initial setup IPC.
 
----
-
-## 🔵 Low
-
-### 13. Add tests
-- [ ] **Done**
-
-**Both sub-projects**
-
-Neither the Electron app nor the plugin has any test coverage. For open source, even minimal tests give contributors confidence when making changes.
-
-Suggested starting points:
-- **`DeckTerm/`** — Unit tests for `loadConfig`, `handleWebSocketCommand` (command routing), `findShells` (path detection), and `loadWindowState`. Use [Vitest](https://vitest.dev/) or Jest with an Electron test helper.
-- **`StreamDeckPlugin/`** — Unit tests for the WebSocket message construction in `TerminalCommandAction` and `OpenTerminalAction`. Vitest works natively with the TypeScript setup already in place.
-
----
 
 ### 14. Add a CI/CD pipeline
 - [ ] **Done**
