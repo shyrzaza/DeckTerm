@@ -25,6 +25,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: StreamDeckPlugin/deck-term/package-lock.json
 
+      # Requires package-lock.json to include cross-platform optional deps.
+      # To regenerate: delete package-lock.json and node_modules, then run:
+      #   npm install
+      #   npm install --package-lock-only --os=linux --cpu=x64 --libc=glibc
       - name: Install dependencies
         run: npm ci
 
