@@ -1,4 +1,4 @@
-import { action, KeyDownEvent, SingletonAction, WillAppearEvent } from "@elgato/streamdeck";
+import streamDeck, { action, KeyDownEvent, SingletonAction, WillAppearEvent } from "@elgato/streamdeck";
 import { WebSocket } from "ws";
 import * as fs from "fs";
 import * as os from "os";
@@ -42,7 +42,7 @@ export class TerminalCommandAction extends SingletonAction<TerminalCommandSettin
     override async onKeyDown(ev: KeyDownEvent<TerminalCommandSettings>): Promise<void> {
         const token = readToken();
         if (!token) {
-            console.error("DeckTerm: could not read auth token from", getTokenPath());
+            streamDeck.logger.error("DeckTerm: could not read auth token from", getTokenPath());
             return;
         }
 
@@ -58,7 +58,7 @@ export class TerminalCommandAction extends SingletonAction<TerminalCommandSettin
         });
 
         ws.on("error", (err: unknown) => {
-            console.error("WebSocket error:", err);
+            streamDeck.logger.error("WebSocket error:", err);
         });
     }
 }
@@ -77,7 +77,7 @@ export class OpenTerminalAction extends SingletonAction<OpenGitBashSettings> {
     override async onKeyDown(ev: KeyDownEvent<OpenGitBashSettings>): Promise<void> {
         const token = readToken();
         if (!token) {
-            console.error("DeckTerm: could not read auth token from", getTokenPath());
+            streamDeck.logger.error("DeckTerm: could not read auth token from", getTokenPath());
             return;
         }
 
@@ -93,7 +93,7 @@ export class OpenTerminalAction extends SingletonAction<OpenGitBashSettings> {
         });
 
         ws.on("error", (err: unknown) => {
-            console.error("WebSocket error:", err);
+            streamDeck.logger.error("WebSocket error:", err);
         });
     }
 }

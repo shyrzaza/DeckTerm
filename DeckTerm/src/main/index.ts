@@ -18,6 +18,12 @@ const DEFAULT_SHELL_WIN = 'C:\\WINDOWS\\system32\\cmd.exe';
 const DEFAULT_SHELL_UNIX = 'bash';
 const WS_PORT = 3000;
 
+// Ensure userData path is consistent between dev and production.
+// In dev, Electron uses package.json "name" ("deck-term"); in production it
+// uses "productName" ("DeckTerm"). Explicitly set it so both environments
+// write config/token files to the same location.
+app.setName('DeckTerm');
+
 // Disable hardware acceleration to prevent potential issues
 app.disableHardwareAcceleration();
 
