@@ -70,7 +70,7 @@ let ptyProcess: IPty | null = null;
 let dataDisposable: IDisposable | null = null;
 
 /** Tracks which WebSocket connections have successfully authenticated. */
-const authenticatedClients = new Set<WebSocket>();
+
 
 /**
  * Loads an existing WS auth token from disk, or generates and persists a new one.
@@ -265,48 +265,40 @@ function setupWebSocketServer(): void {
     wss = new WebSocketServer({ port: WS_PORT });
 
     wss.on('connection', (ws) => {
-        console.log('New WebSocket client connected');
-
         ws.on('message', (message) => {
             try {
                 const parsed = JSON.parse(message.toString()) as Record<string, unknown>;
 
-                if (!authenticatedClients.has(ws)) {
-                    // First message must be the auth handshake.
-                    if (parsed.auth === token) {
-                        authenticatedClients.add(ws);
-                        console.log('WebSocket client authenticated');
-                    } else {
-                        console.warn('WebSocket client failed authentication — closing connection');
-                        ws.close(1008, 'Unauthorized');
-                    }
+                if (parsed.token !== token) {
+                    console.warn('WebSocket message rejected — invalid token');
+                    ws.close(1008, 'Unauthorized');
                     return;
                 }
 
-                handleWebSocketCommand(parsed as { cmd: string; terminalcommand?: string; path?: string });
+                handleWebSocketCommand(parsed as WsMessage);
             } catch (error) {
                 console.error('Error processing WebSocket message:', error);
             }
-        });
-
-        ws.on('close', () => {
-            authenticatedClients.delete(ws);
         });
 
         ws.on('error', (error) => console.error('WebSocket error:', error));
     });
 }
 
-function handleWebSocketCommand(command: { cmd: string; terminalcommand?: string; path?: string }): void {
-    switch (command.cmd) {
-        case 'command':
-            if (command.terminalcommand) ptyProcess?.write(`${command.terminalcommand}\n`);
+type WsMessage =
+    | { type: 'exec';  token: string; payload: { command: string } }
+    | { type: 'chdir'; token: string; payload: { path: string } };
+
+function handleWebSocketCommand(message: WsMessage): void {
+    switch (message.type) {
+        case 'exec':
+            if (message.payload.command) ptyProcess?.write(`${message.payload.command}\n`);
             break;
-        case 'open':
-            if (command.path) ptyProcess?.write(`cd "${command.path}"\n`);
+        case 'chdir':
+            if (message.payload.path) ptyProcess?.write(`cd "${message.payload.path}"\n`);
             break;
         default:
-            console.error('Unknown WebSocket command:', command.cmd);
+            console.error('Unknown WebSocket message type:', (message as WsMessage).type);
     }
 }
 

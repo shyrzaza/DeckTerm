@@ -50,10 +50,7 @@ export class TerminalCommandAction extends SingletonAction<TerminalCommandSettin
 
         ws.on("open", () => {
             const { terminalcommand = "" } = ev.payload.settings;
-
-            // Authenticate first, then send the command.
-            ws.send(JSON.stringify({ auth: token }));
-            ws.send(JSON.stringify({ cmd: "command", terminalcommand }));
+            ws.send(JSON.stringify({ type: "exec", token, payload: { command: terminalcommand } }));
             ws.close();
         });
 
@@ -85,10 +82,7 @@ export class OpenTerminalAction extends SingletonAction<OpenGitBashSettings> {
 
         ws.on("open", () => {
             const { path: targetPath = "" } = ev.payload.settings;
-
-            // Authenticate first, then send the command.
-            ws.send(JSON.stringify({ auth: token }));
-            ws.send(JSON.stringify({ cmd: "open", path: targetPath }));
+            ws.send(JSON.stringify({ type: "chdir", token, payload: { path: targetPath } }));
             ws.close();
         });
 

@@ -104,7 +104,7 @@ DeckTerm exposes a WebSocket server on port **3000**. The Stream Deck plugin use
 
 ## Authentication
 
-Every connection must authenticate **before** sending commands. On startup, DeckTerm generates a token and writes it to:
+On startup, DeckTerm generates a token and writes it to:
 
 - **Windows:** `%APPDATA%\DeckTerm\ws-token.json`
 - **macOS:** `~/Library/Application Support/DeckTerm/ws-token.json`
@@ -116,22 +116,18 @@ The file contains:
 { "token": "<uuid>" }
 ```
 
-Send the auth message as the **first** message after connecting. Any connection that sends a command before authenticating, or sends the wrong token, is immediately closed.
-
-```json
-{ "auth": "<token>" }
-```
+The token must be included in every message you send. Any message with a missing or incorrect token causes the connection to be immediately closed.
 
 ## Commands
 
-After authenticating, send one of the following:
+Include the token in every message:
 
 ```json
 // Execute a shell command
-{ "cmd": "command", "terminalcommand": "git status" }
+{ "type": "exec", "token": "<token>", "payload": { "command": "git status" } }
 
 // Change directory
-{ "cmd": "open", "path": "/path/to/directory" }
+{ "type": "chdir", "token": "<token>", "payload": { "path": "/path/to/directory" } }
 ```
 
 ## Security boundary
